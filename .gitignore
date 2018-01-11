@@ -1,0 +1,5 @@
+vendor/**
+!vendor/manifest
+.idea
+.DS_Store
+http-lambda
