@@ -57,9 +57,12 @@ func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		logger.Error(err)
 	}
-
-	writer.WriteHeader(int(*result.StatusCode))
-	writer.Write(result.Payload)
+	if (result == nil) || (result.StatusCode == nil) {
+		writer.WriteHeader(http.StatusInternalServerError)
+	} else {
+		writer.WriteHeader(int(*result.StatusCode))
+		writer.Write(result.Payload)
+	}
 }
 
 func main() {
@@ -68,7 +71,6 @@ func main() {
 	logger.Infof(logServerStarted, cfgListenAddress, cfgListenPort)
 
 	router := mux.NewRouter()
-
 	router.HandleFunc(urlFunction, lambdaRequest).Methods(http.MethodPost)
 
 	server := &http.Server{
