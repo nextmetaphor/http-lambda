@@ -26,16 +26,18 @@ const (
 	urlFunctionParameter = "function-name"
 	urlFunction          = "/function/{" + urlFunctionParameter + "}"
 
-	// TODO these should be read from command-line or config or both
+	// TODO these should be read from command-line
 	cfgListenAddress = ""
 	cfgListenPort = 18080
+)
+
+var (
+	logger = logrus.New()
 )
 
 func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 	// refer to
 	// https://github.com/awsdocs/aws-doc-sdk-examples/blob/master/go/example_code/lambda/aws-go-sdk-lambda-example-run-function.go
-
-	logger := logrus.New()
 
 	functionName := mux.Vars(request)[urlFunctionParameter]
 
@@ -66,8 +68,6 @@ func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-	logger := logrus.New()
-
 	logger.Infof(logServerStarted, cfgListenAddress, cfgListenPort)
 
 	router := mux.NewRouter()
