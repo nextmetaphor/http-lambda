@@ -25,8 +25,8 @@ const (
 	urlFunctionParameter = "function-name"
 	urlFunction          = "/function/{" + urlFunctionParameter + "}"
 
-	cfgListenAddress = ""
-	cfgListenPort    = "18080"
+	cfgDefaultListenAddress = ""
+	cfgDefaultListenPort    = "18080"
 )
 
 var (
@@ -67,8 +67,8 @@ func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 
 func main() {
 	app := kingpin.New("http-lambda", "Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint")
-	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgListenAddress).String()
-	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgListenPort).String()
+	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgDefaultListenAddress).String()
+	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgDefaultListenPort).String()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	logger.Infof(logServerStarted, *appHost, *appPort)
