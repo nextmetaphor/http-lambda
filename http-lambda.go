@@ -1,34 +1,32 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
+	"context"
+	"github.com/alecthomas/kingpin"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
+	"io/ioutil"
 	"net/http"
-	"strconv"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"github.com/gorilla/handlers"
-	"context"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
-	"github.com/aws/aws-sdk-go/aws"
-	"io/ioutil"
 )
 
 const (
-	logServerStarted  = "http-lambda server starting on address [%s] and port [%d]"
+	logServerStarted  = "http-lambda server starting on address [%s] and port [%s]"
 	logFunctionCalled = "Function %s called"
-	logSIGTERMReceived = "syscall.SIGTERM received, shutting down server"
 	logSignalReceived = "Signal [%s] received, shutting down server"
 
 	urlFunctionParameter = "function-name"
 	urlFunction          = "/function/{" + urlFunctionParameter + "}"
 
-	// TODO these should be read from command-line
 	cfgListenAddress = ""
-	cfgListenPort = 18080
+	cfgListenPort    = "18080"
 )
 
 var (
@@ -68,13 +66,18 @@ func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 }
 
 func main() {
-	logger.Infof(logServerStarted, cfgListenAddress, cfgListenPort)
+	app := kingpin.New("http-lambda", "Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint")
+	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgListenAddress).String()
+	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgListenPort).String()
+	kingpin.MustParse(app.Parse(os.Args[1:]))
+
+	logger.Infof(logServerStarted, *appHost, *appPort)
 
 	router := mux.NewRouter()
 	router.HandleFunc(urlFunction, lambdaRequest).Methods(http.MethodPost)
 
 	server := &http.Server{
-		Addr:    cfgListenAddress + ":" + strconv.Itoa(cfgListenPort),
+		Addr:    *appHost + ":" + *appPort,
 		Handler: handlers.LoggingHandler(os.Stdout, router),
 	}
 
@@ -84,19 +87,11 @@ func main() {
 
 	go func() {
 		s := <-signalChannel
-		switch s {
-		case syscall.SIGTERM:
-			logger.Info(logSIGTERMReceived)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			server.Shutdown(ctx)
 
-		default:
-			logger.Infof(logSignalReceived, s)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			server.Shutdown(ctx)
-		}
+		logger.Infof(logSignalReceived, s)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
 
 	}()
 
