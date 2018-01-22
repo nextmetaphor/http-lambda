@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "TODO"
+  },
+  {
+    "ParameterKey": "VpcId",
+    "ParameterValue": "TODO"
+  },
+  {
+    "ParameterKey": "SubnetId",
+    "ParameterValue": "TODO,TODO,TODO"
+  }
+]
