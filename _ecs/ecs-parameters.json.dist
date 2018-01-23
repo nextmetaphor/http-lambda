@@ -10,5 +10,9 @@
   {
     "ParameterKey": "SubnetId",
     "ParameterValue": "TODO,TODO,TODO"
+  },
+  {
+    "ParameterKey": "TaskRoleId",
+    "ParameterValue": "TODO"
   }
 ]

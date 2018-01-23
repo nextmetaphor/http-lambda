@@ -10,6 +10,9 @@ Parameters:
   SubnetId:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Select at two subnets in your selected VPC.
+  TaskRoleId:
+    Type: AWS::IAM::Role::Id
+    Description: The ARN of an existing role that provides the Task access to invoke Lambda functions.
   DesiredCapacity:
     Type: Number
     Default: '1'
@@ -75,7 +78,7 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       Policies:
-      - PolicyName: ecs-service
+      - PolicyName: ec2-role-policy
         PolicyDocument:
           Statement:
           - Effect: Allow
@@ -103,7 +106,10 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
-          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          cat <<'EOF' >> /etc/ecs/ecs.config
+          ECS_CLUSTER=${ECSCluster}
+          AWS_DEFAULT_REGION=${AWS::Region}
+          EOF
           yum install -y aws-cfn-bootstrap
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
 
@@ -127,6 +133,7 @@ Resources:
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
+      TaskRoleArn: !Ref 'TaskRoleId'
       ContainerDefinitions:
       - Name: ecs-http-lambda
         Hostname: ecs-http-lambda
@@ -136,6 +143,9 @@ Resources:
         - ContainerPort: 18080
           HostPort: 18080
           Protocol: tcp
+        Environment:
+          - Name: 'AWS_DEFAULT_REGION'
+            Value: 'eu-west-1'
 
   # Define the "Cluster" - this is the collection of ECS servers that will run the containers
   ECSCluster:
@@ -159,7 +169,7 @@ Resources:
     DependsOn: ECSALB
     Properties:
       HealthCheckIntervalSeconds: 10
-      HealthCheckPath: /
+      HealthCheckPath: '/health'
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
@@ -207,7 +217,7 @@ Resources:
           Action: ['sts:AssumeRole']
       Path: /
       Policies:
-      - PolicyName: ecs-service
+      - PolicyName: ecs-service-role-policy
         PolicyDocument:
           Statement:
           - Effect: Allow
