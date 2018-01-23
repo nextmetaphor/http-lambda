@@ -11,7 +11,7 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
     Description: Select at two subnets in your selected VPC.
   TaskRoleId:
-    Type: AWS::IAM::Role::Id
+    Type: String
     Description: The ARN of an existing role that provides the Task access to invoke Lambda functions.
   DesiredCapacity:
     Type: Number
@@ -108,7 +108,6 @@ Resources:
           #!/bin/bash -xe
           cat <<'EOF' >> /etc/ecs/ecs.config
           ECS_CLUSTER=${ECSCluster}
-          AWS_DEFAULT_REGION=${AWS::Region}
           EOF
           yum install -y aws-cfn-bootstrap
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ECSAutoScalingGroup --region ${AWS::Region}
@@ -145,7 +144,7 @@ Resources:
           Protocol: tcp
         Environment:
           - Name: 'AWS_DEFAULT_REGION'
-            Value: 'eu-west-1'
+            Value: !Ref 'AWS::Region'
 
   # Define the "Cluster" - this is the collection of ECS servers that will run the containers
   ECSCluster:
@@ -170,11 +169,12 @@ Resources:
     Properties:
       HealthCheckIntervalSeconds: 10
       HealthCheckPath: '/health'
+      HealthCheckPort: 18080
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       Name: ECSTG
-      Port: 80
+      Port: 18080
       Protocol: HTTP
       UnhealthyThresholdCount: 2
       VpcId: !Ref 'VpcId'
