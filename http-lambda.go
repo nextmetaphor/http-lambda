@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/nextmetaphor/http-lambda/log"
 	"github.com/alecthomas/kingpin"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -20,18 +21,26 @@ import (
 const (
 	logServerStarted  = "http-lambda server starting on address [%s] and port [%s]"
 	logFunctionCalled = "Function %s called"
+	logHealthCalled   = "Health check called"
 	logSignalReceived = "Signal [%s] received, shutting down server"
 
-	urlFunctionParameter = "function-name"
 	urlFunction          = "/function/{" + urlFunctionParameter + "}"
+	urlFunctionParameter = "function-name"
+	urlHealth            = "/health"
 
 	cfgDefaultListenAddress = ""
 	cfgDefaultListenPort    = "18080"
+	cfgDefaultLogLevel      = log.LevelWarn
 )
 
 var (
-	logger = logrus.New()
+	logger *logrus.Logger
 )
+
+func healthRequest(writer http.ResponseWriter, request *http.Request) {
+	logger.Debug(logHealthCalled)
+	writer.WriteHeader(http.StatusOK)
+}
 
 func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 	// refer to
@@ -39,7 +48,7 @@ func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
 
 	functionName := mux.Vars(request)[urlFunctionParameter]
 
-	logger.Infof(logFunctionCalled, functionName)
+	logger.Debugf(logFunctionCalled, functionName)
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
@@ -69,11 +78,14 @@ func main() {
 	app := kingpin.New("http-lambda", "Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint")
 	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgDefaultListenAddress).String()
 	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgDefaultListenPort).String()
+	appLogLevel := app.Flag("logLevel", "log level: debug, info, warn or error").Short('l').Default(cfgDefaultLogLevel).String()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
+	logger = log.Get(*appLogLevel)
 	logger.Infof(logServerStarted, *appHost, *appPort)
 
 	router := mux.NewRouter()
+	router.HandleFunc(urlHealth, healthRequest).Methods(http.MethodGet)
 	router.HandleFunc(urlFunction, lambdaRequest).Methods(http.MethodPost)
 
 	server := &http.Server{
