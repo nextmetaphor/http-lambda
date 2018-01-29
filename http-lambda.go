@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/nextmetaphor/http-lambda/log"
 	"github.com/alecthomas/kingpin"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/nextmetaphor/http-lambda/log"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
@@ -19,18 +19,21 @@ import (
 )
 
 const (
-	logServerStarted  = "http-lambda server starting on address [%s] and port [%s]"
-	logFunctionCalled = "Function %s called"
-	logHealthCalled   = "Health check called"
-	logSignalReceived = "Signal [%s] received, shutting down server"
+	logInsecureServerStarting = "http-lambda server starting on address [%s] and port [%s] with a insecure configuration"
+	logSecureServerStarting   = "http-lambda server starting on address [%s] and port [%s] with a secure configuration: cert[%s] key[%s]"
+	logFunctionCalled         = "Function %s called"
+	logHealthCalled           = "Health check called"
+	logSignalReceived         = "Signal [%s] received, shutting down server"
 
 	urlFunction          = "/function/{" + urlFunctionParameter + "}"
 	urlFunctionParameter = "function-name"
 	urlHealth            = "/health"
 
-	cfgDefaultListenAddress = ""
-	cfgDefaultListenPort    = "18080"
-	cfgDefaultLogLevel      = log.LevelWarn
+	cfgDefaultListenAddress   = ""
+	cfgDefaultListenPort      = "18080"
+	cfgDefaultLogLevel        = log.LevelWarn
+	cfgDefaultCertificateFile = "http-lambda.crt"
+	cfgDefaultKeyFile         = "http-lambda.key"
 )
 
 var (
@@ -78,11 +81,13 @@ func main() {
 	app := kingpin.New("http-lambda", "Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint")
 	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgDefaultListenAddress).String()
 	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgDefaultListenPort).String()
+	appCertFile := app.Flag("certFile", "TLS certificate file").Short('c').Default(cfgDefaultCertificateFile).String()
+	appKeyFile := app.Flag("keyFile", "TLS key file").Short('k').Default(cfgDefaultKeyFile).String()
+	appSecure := app.Flag("secure", "whether to use secure TLS connection").Short('s').Default("false").Bool()
 	appLogLevel := app.Flag("logLevel", "log level: debug, info, warn or error").Short('l').Default(cfgDefaultLogLevel).String()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	logger = log.Get(*appLogLevel)
-	logger.Infof(logServerStarted, *appHost, *appPort)
 
 	router := mux.NewRouter()
 	router.HandleFunc(urlHealth, healthRequest).Methods(http.MethodGet)
@@ -107,5 +112,11 @@ func main() {
 
 	}()
 
-	logger.Info(server.ListenAndServe())
+	if *appSecure {
+		logger.Infof(logSecureServerStarting, *appHost, *appPort, *appCertFile, *appKeyFile)
+		logger.Info(server.ListenAndServeTLS(*appCertFile, *appKeyFile))
+	} else {
+		logger.Infof(logInsecureServerStarting, *appHost, *appPort)
+		logger.Info(server.ListenAndServe())
+	}
 }
