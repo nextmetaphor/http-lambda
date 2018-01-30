@@ -12,29 +12,50 @@ A simple golang-based utility which enables AWS Lambda functions to be invoked f
 #### Building the Code
 First restore the vendor dependencies:
 ```
-gvt restore
+$ gvt restore
 ```
 
 Alternatively, manually install the vendor dependencies:
 ```bash
-gvt fetch --revision v1.12.59 github.com/aws/aws-sdk-go
-gvt fetch --revision v1.0.0 github.com/sirupsen/logrus
-gvt fetch --revision v1.6.0 github.com/gorilla/mux
-gvt fetch --revision v1.3.0 github.com/gorilla/handlers
-gvt fetch --revision v2.2.6 github.com/alecthomas/kingpin
+$ gvt fetch --revision v1.12.59 github.com/aws/aws-sdk-go
+$ gvt fetch --revision v1.0.0 github.com/sirupsen/logrus
+$ gvt fetch --revision v1.6.0 github.com/gorilla/mux
+$ gvt fetch --revision v1.3.0 github.com/gorilla/handlers
+$ gvt fetch --revision v2.2.6 github.com/alecthomas/kingpin
 ```
 
 Then simply build the binary:
 ```bash
-go build -i
+$ go build -i
 ```
 
 ## Deployment
 
+### Command Line Options
+Use the `--help` flag to examine the various command line options available.
+
+```bash
+$ http-lambda --help
+usage: http-lambda [<flags>]
+
+Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint
+
+Flags:
+      --help             Show context-sensitive help (also try --help-long and --help-man).
+  -h, --hostname=""      hostname to bind to
+  -p, --port="18080"     port to bind to
+  -c, --certFile="http-lambda.crt"  
+                         TLS certificate file
+  -k, --keyFile="http-lambda.key"  
+                         TLS key file
+  -s, --secure           whether to use secure TLS connection
+  -l, --logLevel="warn"  log level: debug, info, warn or error
+```
+
 ### Running The http-lambda Server
 Invoke the built server as follows; logs are output to `stderr`, access logs to `stdout`. The server listens binds to address `localhost` on port `18080`. 
 ```bash
-./http-lambda 1>>http-lambda-access.log 2>>http-lambda.log
+$ http-lambda 1>>http-lambda-access.log 2>>http-lambda.log
 ```
 
 ## Validation
