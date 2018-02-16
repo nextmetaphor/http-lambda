@@ -6,3 +6,4 @@ http-lambda
 *.log
 *.crt
 *.key
+coverage.out
