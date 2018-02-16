@@ -3,14 +3,10 @@ package main
 import (
 	"context"
 	"github.com/alecthomas/kingpin"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/nextmetaphor/http-lambda/controller"
 	"github.com/nextmetaphor/http-lambda/log"
-	"github.com/sirupsen/logrus"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,13 +17,7 @@ import (
 const (
 	logInsecureServerStarting = "http-lambda server starting on address [%s] and port [%s] with a insecure configuration"
 	logSecureServerStarting   = "http-lambda server starting on address [%s] and port [%s] with a secure configuration: cert[%s] key[%s]"
-	logFunctionCalled         = "Function %s called"
-	logHealthCalled           = "Health check called"
 	logSignalReceived         = "Signal [%s] received, shutting down server"
-
-	urlFunction          = "/function/{" + urlFunctionParameter + "}"
-	urlFunctionParameter = "function-name"
-	urlHealth            = "/health"
 
 	cfgDefaultListenAddress   = ""
 	cfgDefaultListenPort      = "18080"
@@ -36,48 +26,8 @@ const (
 	cfgDefaultKeyFile         = "http-lambda.key"
 )
 
-var (
-	logger *logrus.Logger
-)
-
-func healthRequest(writer http.ResponseWriter, request *http.Request) {
-	logger.Debug(logHealthCalled)
-	writer.WriteHeader(http.StatusOK)
-}
-
-func lambdaRequest(writer http.ResponseWriter, request *http.Request) {
-	// refer to
-	// https://github.com/awsdocs/aws-doc-sdk-examples/blob/master/go/example_code/lambda/aws-go-sdk-lambda-example-run-function.go
-
-	functionName := mux.Vars(request)[urlFunctionParameter]
-
-	logger.Debugf(logFunctionCalled, functionName)
-
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
-	client := lambda.New(sess, &aws.Config{Region: aws.String(*sess.Config.Region)})
-
-	payload, err := ioutil.ReadAll(request.Body)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	result, err := client.Invoke(&lambda.InvokeInput{FunctionName: aws.String(functionName), Payload: payload})
-	if err != nil {
-		logger.Error(err)
-	}
-	if (result == nil) || (result.StatusCode == nil) {
-		writer.WriteHeader(http.StatusInternalServerError)
-	} else {
-		writer.WriteHeader(int(*result.StatusCode))
-		writer.Write(result.Payload)
-	}
-}
-
 func main() {
+
 	app := kingpin.New("http-lambda", "Simple golang-based utility which enables AWS Lambda functions to be invoked from an HTTP endpoint")
 	appHost := app.Flag("hostname", "hostname to bind to").Short('h').Default(cfgDefaultListenAddress).String()
 	appPort := app.Flag("port", "port to bind to").Short('p').Default(cfgDefaultListenPort).String()
@@ -87,15 +37,14 @@ func main() {
 	appLogLevel := app.Flag("logLevel", "log level: debug, info, warn or error").Short('l').Default(cfgDefaultLogLevel).String()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	logger = log.Get(*appLogLevel)
+	ctx := controller.Context{Log: log.Get(*appLogLevel), Router: mux.NewRouter()}
 
-	router := mux.NewRouter()
-	router.HandleFunc(urlHealth, healthRequest).Methods(http.MethodGet)
-	router.HandleFunc(urlFunction, lambdaRequest).Methods(http.MethodPost)
+	ctx.RegisterHealthHandlers()
+	ctx.RegisterLambdaHandlers()
 
 	server := &http.Server{
 		Addr:    *appHost + ":" + *appPort,
-		Handler: handlers.LoggingHandler(os.Stdout, router),
+		Handler: handlers.LoggingHandler(os.Stdout, ctx.Router),
 	}
 
 	// See https://en.wikipedia.org/wiki/Signal_(IPC)
@@ -105,7 +54,7 @@ func main() {
 	go func() {
 		s := <-signalChannel
 
-		logger.Infof(logSignalReceived, s)
+		ctx.Log.Infof(logSignalReceived, s)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		server.Shutdown(ctx)
@@ -113,10 +62,10 @@ func main() {
 	}()
 
 	if *appSecure {
-		logger.Infof(logSecureServerStarting, *appHost, *appPort, *appCertFile, *appKeyFile)
-		logger.Info(server.ListenAndServeTLS(*appCertFile, *appKeyFile))
+		ctx.Log.Infof(logSecureServerStarting, *appHost, *appPort, *appCertFile, *appKeyFile)
+		ctx.Log.Info(server.ListenAndServeTLS(*appCertFile, *appKeyFile))
 	} else {
-		logger.Infof(logInsecureServerStarting, *appHost, *appPort)
-		logger.Info(server.ListenAndServe())
+		ctx.Log.Infof(logInsecureServerStarting, *appHost, *appPort)
+		ctx.Log.Info(server.ListenAndServe())
 	}
 }
